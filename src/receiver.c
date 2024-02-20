@@ -13,7 +13,12 @@
 
 #define MYPORT "4950"    // the port users will be connecting to
 #define HOSTNAME "127.0.0.1"
-#define MAXBUFLEN 100
+#define MAXBUFLEN 8192
+
+struct header_seg{
+    uint32_t seq_number;
+    uint32_t ack_number;
+};
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -84,9 +89,16 @@ void rrecv(unsigned short int myUDPport,
         inet_ntop(their_addr.ss_family,
             get_in_addr((struct sockaddr *)&their_addr),
             s, sizeof s));
-    printf("listener: packet is %d bytes long\n", numbytes);
-    buf[numbytes] = '\0';
+    //print the message
+    printf("=============================================\n");
+    struct header_seg *header = (struct header_seg*)buf;
+    char *data = buf + sizeof(struct header_seg);
+    printf("Seq Number: %d\n", ntohl(header->seq_number));
+    printf("Ack Number: %d\n", ntohl(header->ack_number));
+    printf("Data: %s\n", data);
+    printf("=============================================\n");
     //sending reply
+    memset(buf, 0, MAXBUFLEN);// clear the buffer   
     if ((numbytes = sendto(sockfd, "Recived Boss!", 13, 0,
              (struct sockaddr *)&their_addr, addr_len)) == -1) {
         perror("talker: sendto");
