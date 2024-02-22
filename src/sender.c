@@ -82,6 +82,10 @@ void *send_data(void *arg){
             buffer[bytesRead] = '\0'; // Ensure null-termination
 
             if(bytesRead != bytesToTransfer){
+                if(feof(file)){
+                    printf("End of file reached\n");
+                    exit(1);
+                }
                 perror("Error reading file");
                 return NULL;
             }
@@ -179,7 +183,6 @@ void rsend(char* hostname,
         }
         break;
     }
-    printf("Handshake complete\n");
 
     pthread_t send_thread, recv_thread; // 
     pthread_mutex_init(&lock, NULL);
