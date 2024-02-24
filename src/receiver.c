@@ -14,11 +14,18 @@
 #define MYPORT "4950"    // the port users will be connecting to
 #define HOSTNAME "127.0.0.1"
 #define MAXBUFLEN 8192
+#define DATA_LEN 2000
+
+int counter = 0;
+int total = 0;
 
 struct header_seg{
-    uint32_t seq_number;
-    uint32_t ack_number;
+    uint64_t seq_number;
+    uint64_t ack_number;
+    uint64_t data_len;
+    char data[DATA_LEN];
 };
+
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -77,32 +84,70 @@ void rrecv(unsigned short int myUDPport,
 
     freeaddrinfo(servinfo);
     printf("listener: waiting to recvfrom...\n");
+    while(1){
 
-    addr_len = sizeof their_addr;
-    if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
-        (struct sockaddr *)&their_addr, &addr_len)) == -1) {
-        perror("recvfrom");
-        exit(1);
-    }
+        addr_len = sizeof their_addr;
+        if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
+            (struct sockaddr *)&their_addr, &addr_len)) == -1) {
+            perror("recvfrom");
+            exit(1);
+        }
 
-    printf("listener: got packet from %s\n",
-        inet_ntop(their_addr.ss_family,
-            get_in_addr((struct sockaddr *)&their_addr),
-            s, sizeof s));
-    //print the message
-    printf("=============================================\n");
-    struct header_seg *header = (struct header_seg*)buf;
-    char *data = buf + sizeof(struct header_seg);
-    printf("Seq Number: %d\n", ntohl(header->seq_number));
-    printf("Ack Number: %d\n", ntohl(header->ack_number));
-    printf("Data: %s\n", data);
-    printf("=============================================\n");
+        printf("listener: got packet from %s\n",
+            inet_ntop(their_addr.ss_family,
+                get_in_addr((struct sockaddr *)&their_addr),
+                s, sizeof s));
+        //print the message
+        printf("=============================================\n");
+        struct header_seg *header = (struct header_seg*)buf;
+        char data[DATA_LEN];
+        memcpy(data, header->data, DATA_LEN);
+        if(ntohl(header->seq_number) > 100000){
+            printf("%s \n", buf);
+            memset(buf, 0, MAXBUFLEN);
+            if ((numbytes = sendto(sockfd, "Recived Boss!", 13, 0,
+                (struct sockaddr *)&their_addr, addr_len)) == -1) {
+                perror("talker: sendto");
+                exit(1);
+            }
+        }
+        else{
+            
+            printf("Seq Number: %d\n", ntohl(header->seq_number));
+            printf("Ack Number: %d\n", ntohl(header->ack_number));
+            printf("Data Length: %d\n", ntohl(header->data_len));
+            printf("Data: %s\n", data);
+
+            char packet[sizeof(struct header_seg)]; // +1 for null-terminator
+
+            struct header_seg *header_2 = (struct header_seg*)packet;
+            header_2->seq_number = ((header->seq_number));
+            header_2->ack_number = ((header->ack_number));
+            header_2->data_len = ((header->data_len));  
+            
+            strncpy(header_2->data, "Received!", DATA_LEN);
+
+            //sending reply
+            if(ntohl(header->ack_number) == counter ){
+                total += strlen(data);
+                counter++;
+                FILE *file = fopen("src/data.txt", "a+");
+                if(file == NULL){
+                    printf("Error opening file!\n");
+                    exit(1);
+                }
+                fputs(data, file);
+                fclose(file);
+            }
+            if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
+                (struct sockaddr *)&their_addr, addr_len)) == -1) {
+                perror("talker: sendto");
+                exit(1);
+            }
+            memset(buf, 0, MAXBUFLEN);// clear the buffer 
+        }
+        printf("=============================================\n");
     //sending reply
-    memset(buf, 0, MAXBUFLEN);// clear the buffer   
-    if ((numbytes = sendto(sockfd, "Recived Boss!", 13, 0,
-             (struct sockaddr *)&their_addr, addr_len)) == -1) {
-        perror("talker: sendto");
-        exit(1);
     }
     close(sockfd);
     return;
