@@ -30,7 +30,7 @@ void *get_in_addr(struct sockaddr *sa)
 }
 
 //currently packet is being sent
-//need to send back ack to the server, to handel packet loss
+//need to send back ack to the server, using the headers created
 //also need to specify the rcwd
 
 void rrecv(unsigned short int myUDPport, 
@@ -117,11 +117,9 @@ void rrecv(unsigned short int myUDPport,
 
 // Now proceed with the main communication loop
 while(1) {
-    // addr_len = sizeof their_addr;
     numbytes = recvfrom(sockfd, buf, MAXBUFLEN - 1, 0, (struct sockaddr *)&their_addr, &addr_len);
     if (numbytes == -1) {
         if (errno == EWOULDBLOCK || errno == EAGAIN) {
-            printf("=============================================\n");
             printf("Timeout reached. No packets received for 5 seconds.\n");
             break; // Exit the loop on timeout
         } else {
@@ -131,24 +129,30 @@ while(1) {
     }
 
     // Process the received packet
-    buf[numbytes] = '\0'; // Ensure null-termination
-    printf("=============================================\n");
-    printf("listener: got packet from %s\n", inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s));
-    struct header_seg *header = (struct header_seg*)buf;
+    struct header_seg *received_header = (struct header_seg*)buf;
+    printf("Received: Seq Number: %d, Ack Number: %d\n", ntohl(received_header->seq_number), ntohl(received_header->ack_number));
+   
     char *data = buf + sizeof(struct header_seg);
-    printf("Seq Number: %d\n", ntohl(header->seq_number));
-    printf("Ack Number: %d\n", ntohl(header->ack_number));
     printf("Data: %s\n", data);
-    fprintf(fp, "%s", data); // Write data to file
-         //sending reply
-    memset(buf, 0, MAXBUFLEN);// clear the buffer   
-    if ((numbytes = sendto(sockfd, "ACK for this packet\n", 21, 0, (struct sockaddr *)&their_addr, addr_len)) != -1) {
-        printf("ACK sent\n");
+    fprintf(fp, "%s", data);
+
+    // Prepare the acknowledgment packet
+    struct header_seg ack_header;
+    int payloadSize = numbytes - sizeof(struct header_seg);
+    //the seq number is acknowledgement of the seq number just received
+    ack_header.seq_number = htonl(ntohl(received_header->seq_number)); // Echo back the received sequence number
+    //the ACK number is the the EXPECTED value of the next packet
+    ack_header.ack_number = htonl(ntohl(received_header->seq_number) + payloadSize); // You can set this to a meaningful value based on your protocol
+    
+    // Send the acknowledgment packet back to the sender
+    if (sendto(sockfd, &ack_header, sizeof(ack_header), 0, (struct sockaddr *)&their_addr, addr_len) != -1) {
+        printf("ACK sent for Seq Number: %d\n", ntohl(ack_header.seq_number));
+        printf("next expected packet has sequency number: %d\n", ntohl(ack_header.ack_number));
+        printf("=============================================\n");
     } else {
         perror("ACK not sent");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
-
 }
 
     fclose(fp);
