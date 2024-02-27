@@ -10,37 +10,29 @@
 
 #include <pthread.h>
 #include <errno.h>
+#include <limits.h>
+#include <sys/time.h>
 
 #define BUFFER_SIZE 8192
-#define WINDOW_SIZE 10
 #define TIMEOUT 1
+#define DATA_LEN 2000
+#define INITIAL_SIZE 2
 
-pthread_mutex_t lock;
-int ack_received[WINDOW_SIZE] = {0}; // will work as sliding window 
-
-struct send_data_args{
-    struct addrinfo *p;
-    int sockfd;
-    char *filename;
-    unsigned long long int ToTransfer;
-};
+unsigned long long int byte_sent = 0;
+unsigned long long int packet_in_total = 0; 
 
 struct header_seg{
-    uint32_t seq_number;
-    uint32_t ack_number;
-    
-    // uint32_t header_len:2;
-    // uint32_t padding:2;
-    // uint32_t conges:1;
-    // uint32_t e_cong:1;
-    // uint32_t urg:1;
-    // uint32_t ack:1;
-    // uint32_t push:1;
-    // uint32_t reset:1;
-    // uint32_t syn:1;
-    // uint32_t fin:1;
-    // uint32_t recieve_window:16;
+    uint64_t seq_number;
+    uint64_t ack_number;
+    uint64_t data_len;
+    char data[DATA_LEN];
 };
+
+struct header_seg *packet_window;
+int *ack_received;
+
+int cwnd = 1;
+int ssthresh = INT_MAX;
 
 void *get_in_addr(struct sockaddr *sa){
     if (sa->sa_family == AF_INET){
@@ -49,17 +41,11 @@ void *get_in_addr(struct sockaddr *sa){
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-void *send_data(void *arg){
-    struct send_data_args *args = (struct send_data_args*)arg;
-    struct addrinfo *p = args->p;
-    unsigned long long int bytesToTransfer = 1;
-    size_t ToTransfer = args->ToTransfer;
-    int sockfd = args->sockfd;
-
-    FILE *file = fopen(args->filename,"r");
-    if(file == NULL){
-        fprintf(stderr, "File not found\n");
-        return NULL;
+void send_data(int sockfd, struct addrinfo *p, char *filename, unsigned long long int ToTransfer) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("fopen");
+        exit(EXIT_FAILURE);
     }
 
     unsigned long long int totalBytes = 0;
@@ -101,18 +87,37 @@ void *send_data(void *arg){
             else{
                 bytesToTransfer *= bytesToTransfer;
             }
-            sleep(1); // Wait before trying again
+            for(int i = 0; i < cwnd && i < packet_in_total; i++){
+                int k = i;
+                while(ack_received[k] != 0 && k < packet_in_total){k++;}
+                    if(sendto(sockfd, (char*)&packet_window[k], sizeof(struct header_seg), 0, (struct sockaddr *)&their_addr, addr_len) == -1){
+                        perror("sendto");
+                        exit(EXIT_FAILURE);
+                    }
+                i = k;    
+            }
+            continue;
+        }
+        struct header_seg *header = (struct header_seg*)buffer;
+        if(ack_received[ntohl(header->ack_number)]){
+            // Duplicate ack
+            ssthresh = cwnd / 2;
+            cwnd = ssthresh + 3;
+        }
+        ack_received[ntohl(header->ack_number)] = 1;
+        if(cwnd < ssthresh){
+            cwnd *= 2;
+        } else {
+            cwnd += 1/cwnd;
         }
     }
-    fclose(file);
-    return NULL;
+    printf("File transfer complete\n");
+        //packet loss
 }
-// void recv_data(void *arg, int sockfd){
-//     struct addrinfo *p = (struct addrinfo*) arg;
-//     struct sockaddr_storage their_addr;
-//     socklen_t addr_len;
+    
 
-// }
+
+// Rest of the code remains the same
 
 int connect_udp(int sockfd, struct addrinfo *p){
     int n;
@@ -128,7 +133,7 @@ int connect_udp(int sockfd, struct addrinfo *p){
         bzero(buffer, BUFFER_SIZE);
         if ((n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&their_addr, &addr_len)) == -1) {
             perror("recvfrom");
-            sleep(0.001); // Wait before trying again
+            sleep(0.01); // Wait before trying again
             continue;
         }
         printf("Received: %s\n", buffer);

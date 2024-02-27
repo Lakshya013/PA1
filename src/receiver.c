@@ -14,11 +14,18 @@
 #define MYPORT "4950"    // the port users will be connecting to
 #define HOSTNAME "127.0.0.1"
 #define MAXBUFLEN 8192
+#define DATA_LEN 2000
+
+int counter = 0;
+int total = 0;
 
 struct header_seg{
-    uint32_t seq_number;
-    uint32_t ack_number;
+    uint64_t seq_number;
+    uint64_t ack_number;
+    uint64_t data_len;
+    char data[DATA_LEN];
 };
+
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -89,7 +96,14 @@ void rrecv(unsigned short int myUDPport,
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
     printf("listener: waiting to recvfrom...\n");
+    while(1){
 
+        addr_len = sizeof their_addr;
+        if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
+            (struct sockaddr *)&their_addr, &addr_len)) == -1) {
+            perror("recvfrom");
+            exit(1);
+        }
     addr_len = sizeof their_addr;
 
     //save contents to a file
