@@ -41,49 +41,50 @@ void *get_in_addr(struct sockaddr *sa){
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-void send_data(int sockfd, struct addrinfo *p, char *filename, unsigned long long int ToTransfer){
+void send_data(int sockfd, struct addrinfo *p, char *filename, unsigned long long int ToTransfer) {
     FILE *file = fopen(filename, "r");
-    if(file == NULL){
+    if (file == NULL) {
         perror("fopen");
         exit(EXIT_FAILURE);
     }
 
-    int tot_pack = (ToTransfer + DATA_LEN - 1) / DATA_LEN;
-    packet_in_total = tot_pack;
+    unsigned long long int bytesRemaining = ToTransfer; // Track remaining bytes to send
     uint64_t seq_num = 0;
-    for(int count = 0; count < tot_pack ; count++){
-        int to_send = DATA_LEN <= byte_sent ? DATA_LEN : byte_sent;
+    while (bytesRemaining > 0) {
+        int to_send = DATA_LEN < bytesRemaining ? DATA_LEN : bytesRemaining;
         
-        seq_num += to_send;
-
         char buffer[sizeof(struct header_seg)];
         struct header_seg *header = (struct header_seg*)buffer;
 
         size_t bytes_read = fread(header->data, 1, to_send, file);
-        if(bytes_read == -1){
-            perror("fread");
-            exit(EXIT_FAILURE);
+        if (bytes_read == 0) {
+            if (ferror(file)) { // Check for fread error
+                perror("fread");
+                exit(EXIT_FAILURE);
+            }
+            break; // End of file reached or no data read, exit the loop
         }
+
         header->data[bytes_read] = '\0';
 
+        seq_num += bytes_read; // Update sequence number based on bytes actually read
+
         header->seq_number = htonl(seq_num);
-        header->ack_number = htonl(count);
+        // Assuming ack_number is being used correctly; otherwise, adjust as needed
+        header->ack_number = htonl(0); // Placeholder, adjust based on your logic
         header->data_len = htonl(bytes_read);
 
-        packet_window[count] = *header;
-        ack_received[count] = 0;
-
-        byte_sent -= to_send;
-    }
-    for(int i = 0; i < cwnd && i < tot_pack; i++){
-        if(sendto(sockfd, (char*)&packet_window[i], sizeof(struct header_seg), 0, p->ai_addr, p->ai_addrlen) == -1){
+        if (sendto(sockfd, buffer, sizeof(struct header_seg), 0, p->ai_addr, p->ai_addrlen) == -1) {
             perror("sendto");
             exit(EXIT_FAILURE);
         }
+
+        bytesRemaining -= bytes_read; // Decrement remaining bytes by the amount just sent
     }
+
     fclose(file);
-    return;
 }
+
 
 int check_ack(){
 
