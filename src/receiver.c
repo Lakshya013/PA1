@@ -36,6 +36,10 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+//currently packet is being sent
+//need to send back ack to the server, using the headers created
+//also need to specify the rcwd
+
 void rrecv(unsigned short int myUDPport, 
             char* destinationFile, 
             unsigned long long int writeRate) {
@@ -47,6 +51,8 @@ void rrecv(unsigned short int myUDPport,
     char buf[MAXBUFLEN];
     socklen_t addr_len;
     char s[INET6_ADDRSTRLEN];
+    struct timeval tv;
+
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC; // set to AF_INET to force IPv4
@@ -83,6 +89,12 @@ void rrecv(unsigned short int myUDPport,
     }
 
     freeaddrinfo(servinfo);
+    
+    // Set the timeout for recvfrom
+    tv.tv_sec = 5;  // 5 Seconds
+    tv.tv_usec = 0;
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
     printf("listener: waiting to recvfrom...\n");
     while(1){
 
@@ -92,65 +104,78 @@ void rrecv(unsigned short int myUDPport,
             perror("recvfrom");
             exit(1);
         }
+    addr_len = sizeof their_addr;
 
-        printf("listener: got packet from %s\n",
-            inet_ntop(their_addr.ss_family,
-                get_in_addr((struct sockaddr *)&their_addr),
-                s, sizeof s));
-        //print the message
-        printf("=============================================\n");
-        struct header_seg *header = (struct header_seg*)buf;
-        char data[DATA_LEN];
-        memcpy(data, header->data, DATA_LEN);
-        if(ntohl(header->seq_number) > 100000){
-            printf("%s \n", buf);
-            memset(buf, 0, MAXBUFLEN);
-            if ((numbytes = sendto(sockfd, "Recived Boss!", 13, 0,
-                (struct sockaddr *)&their_addr, addr_len)) == -1) {
-                perror("talker: sendto");
-                exit(1);
-            }
-        }
-        else{
-            
-            printf("Seq Number: %d\n", ntohl(header->seq_number));
-            printf("Ack Number: %d\n", ntohl(header->ack_number));
-            printf("Data Length: %d\n", ntohl(header->data_len));
-            printf("Data: %s\n", data);
-
-            char packet[sizeof(struct header_seg)]; // +1 for null-terminator
-
-            struct header_seg *header_2 = (struct header_seg*)packet;
-            header_2->seq_number = ((header->seq_number));
-            header_2->ack_number = ((header->ack_number));
-            header_2->data_len = ((header->data_len));  
-            
-            strncpy(header_2->data, "Received!", DATA_LEN);
-
-            //sending reply
-            if(ntohl(header->ack_number) == counter ){
-                total += strlen(data);
-                counter++;
-                FILE *file = fopen("src/data.txt", "a+");
-                if(file == NULL){
-                    printf("Error opening file!\n");
-                    exit(1);
-                }
-                fputs(data, file);
-                fclose(file);
-            }
-            if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
-                (struct sockaddr *)&their_addr, addr_len)) == -1) {
-                perror("talker: sendto");
-                exit(1);
-            }
-            memset(buf, 0, MAXBUFLEN);// clear the buffer 
-        }
-        printf("=============================================\n");
-    //sending reply
+    //save contents to a file
+    FILE *fp = fopen(destinationFile, "a");
+    if (fp == NULL) {
+        perror("Error opening file");
+    exit(1);
     }
+
+    // Initial handshake receive
+    addr_len = sizeof their_addr;
+    if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN - 1, 0, 
+        (struct sockaddr *)&their_addr, &addr_len)) == -1) {
+        perror("recvfrom initial handshake");
+        exit(1);
+    }
+
+    // Send back "Handshake complete" confirmation after receiving the initial packet
+    memset(buf, 0, MAXBUFLEN); // Clear the buffer
+    if ((numbytes = sendto(sockfd, "Handshake complete\n", 19, 0,
+        (struct sockaddr *)&their_addr, addr_len)) == -1) {
+        perror("Handshake Unsucessful");
+    exit(1);
+}
+
+// Now proceed with the main communication loop
+while(1) {
+    numbytes = recvfrom(sockfd, buf, MAXBUFLEN - 1, 0, (struct sockaddr *)&their_addr, &addr_len);
+    if (numbytes == -1) {
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            printf("Timeout reached. No packets received for 5 seconds.\n");
+            break; // Exit the loop on timeout
+        } else {
+            perror("recvfrom during main communication");
+            exit(1);
+        }
+    }
+
+    // Process the received packet
+    struct header_seg *received_header = (struct header_seg*)buf;
+    printf("Received: Seq Number: %d, Ack Number: %d\n", ntohl(received_header->seq_number), ntohl(received_header->ack_number));
+   
+    char *data = buf + sizeof(struct header_seg);
+    printf("Data: %s\n", data);
+    fprintf(fp, "%s", data);
+
+    // Prepare the acknowledgment packet
+    struct header_seg ack_header;
+    int payloadSize = numbytes - sizeof(struct header_seg);
+    //the seq number is acknowledgement of the seq number just received
+    ack_header.seq_number = htonl(ntohl(received_header->seq_number)); // Echo back the received sequence number
+    //the ACK number is the the EXPECTED value of the next packet
+    ack_header.ack_number = htonl(ntohl(received_header->seq_number) + payloadSize); // You can set this to a meaningful value based on your protocol
+    
+    // Send the acknowledgment packet back to the sender
+    if (sendto(sockfd, &ack_header, sizeof(ack_header), 0, (struct sockaddr *)&their_addr, addr_len) != -1) {
+        printf("ACK sent for Seq Number: %d\n", ntohl(ack_header.seq_number));
+        printf("next expected packet has sequency number: %d\n", ntohl(ack_header.ack_number));
+        printf("=============================================\n");
+    } else {
+        perror("ACK not sent");
+        exit(EXIT_FAILURE);
+    }
+}
+
+    fclose(fp);
     close(sockfd);
+    printf("=============================================\n");
+    printf("Socket closed\n");
+    printf("=============================================\n");
     return;
+
 }
 
 int main(int argc, char** argv) {
@@ -167,6 +192,6 @@ int main(int argc, char** argv) {
     }
 
     udpPort = (unsigned short int) atoi(argv[1]);
-    while(1) rrecv(udpPort, argv[2], 0);
+    rrecv(udpPort, argv[2], 0);
     return 0; 
 }
