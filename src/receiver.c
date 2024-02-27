@@ -47,6 +47,7 @@ void rrecv(unsigned short int myUDPport,
     char buf[MAXBUFLEN];
     socklen_t addr_len;
     char s[INET6_ADDRSTRLEN];
+    struct timeval tv;
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC; // set to AF_INET to force IPv4
@@ -83,14 +84,29 @@ void rrecv(unsigned short int myUDPport,
     }
 
     freeaddrinfo(servinfo);
+
+        // Set the timeout for recvfrom
+    tv.tv_sec = 5;  // 5 Seconds
+    tv.tv_usec = 0;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) == -1) {
+        perror("setsockopt");
+        exit(1);
+    }
+
     printf("listener: waiting to recvfrom...\n");
     while(1){
 
         addr_len = sizeof their_addr;
-        if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
-            (struct sockaddr *)&their_addr, &addr_len)) == -1) {
-            perror("recvfrom");
-            exit(1);
+        int numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
+        if (numbytes == -1) {
+            if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                printf("Timeout reached. No packets received for 5 seconds.\n");
+                printf("Connection closed.\n");
+                break; // Exit the loop on timeout
+            } else {
+                perror("recvfrom");
+                exit(1);
+            }
         }
 
         printf("listener: got packet from %s\n",
@@ -102,6 +118,7 @@ void rrecv(unsigned short int myUDPport,
         struct header_seg *header = (struct header_seg*)buf;
         char data[DATA_LEN];
         memcpy(data, header->data, DATA_LEN);
+        //sequency number of handshake packet usally >> 10000
         if(ntohl(header->seq_number) > 100000){
             printf("%s \n", buf);
             memset(buf, 0, MAXBUFLEN);
@@ -167,6 +184,6 @@ int main(int argc, char** argv) {
     }
 
     udpPort = (unsigned short int) atoi(argv[1]);
-    while(1) rrecv(udpPort, argv[2], 0);
+    rrecv(udpPort, argv[2], 0);
     return 0; 
 }
