@@ -41,51 +41,70 @@ void *get_in_addr(struct sockaddr *sa){
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-void send_data(int sockfd, struct addrinfo *p, char *filename, unsigned long long int ToTransfer) {
+void send_data(int sockfd, struct addrinfo *p, char *filename, unsigned long long int ToTransfer){
     FILE *file = fopen(filename, "r");
-    if (file == NULL) {
+    if(file == NULL){
         perror("fopen");
         exit(EXIT_FAILURE);
     }
 
-    unsigned long long int totalBytes = 0;
+    int tot_pack = (ToTransfer + DATA_LEN - 1) / DATA_LEN;
+    packet_in_total = tot_pack;
+    uint64_t seq_num = 0;
+    for(int count = 0; count < tot_pack ; count++){
+        int to_send = DATA_LEN <= byte_sent ? DATA_LEN : byte_sent;
+        
+        seq_num += to_send;
 
-    while(totalBytes < ToTransfer){
-        for(int i = 0; i < 5 ; i++){
+        char buffer[sizeof(struct header_seg)];
+        struct header_seg *header = (struct header_seg*)buffer;
 
-            if(totalBytes + bytesToTransfer > ToTransfer){
-                bytesToTransfer = ToTransfer - totalBytes;
-            }
+        size_t bytes_read = fread(header->data, 1, to_send, file);
+        if(bytes_read == -1){
+            perror("fread");
+            exit(EXIT_FAILURE);
+        }
+        header->data[bytes_read] = '\0';
 
-            char packet[sizeof(struct header_seg) + bytesToTransfer + 1]; // +1 for null-terminator
+        header->seq_number = htonl(seq_num);
+        header->ack_number = htonl(count);
+        header->data_len = htonl(bytes_read);
 
-            struct header_seg *header = (struct header_seg*)packet;
-            header->seq_number = htonl(bytesToTransfer);
-            header->ack_number = htonl(i);
+        packet_window[count] = *header;
+        ack_received[count] = 0;
 
-            char *buffer = packet + sizeof(struct header_seg);
-            size_t bytesRead = fread(buffer, 1, bytesToTransfer, file);
-            buffer[bytesRead] = '\0'; // Ensure null-termination
+        byte_sent -= to_send;
+    }
+    for(int i = 0; i < cwnd && i < tot_pack; i++){
+        if(sendto(sockfd, (char*)&packet_window[i], sizeof(struct header_seg), 0, p->ai_addr, p->ai_addrlen) == -1){
+            perror("sendto");
+            exit(EXIT_FAILURE);
+        }
+    }
+    fclose(file);
+    return;
+}
 
-            if(bytesRead != bytesToTransfer){
-                if(feof(file)){
-                    printf("End of file reached\n");
-                    exit(1);
-                }
-                perror("Error reading file");
-                return NULL;
-            }
+int check_ack(){
 
-            if(sendto(sockfd, packet, sizeof(struct header_seg) + bytesRead, 0, p->ai_addr, p->ai_addrlen) == -1){
-                perror("sendto");
-                continue;
-            }
-            totalBytes += bytesRead;
-            if(bytesToTransfer == 1){
-                bytesToTransfer++;
-            }
-            else{
-                bytesToTransfer *= bytesToTransfer;
+    for(int i = 0 ; i < packet_in_total; i++){
+        if(ack_received[i] == 0){
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void recv_data(int sockfd, unsigned long long int ToTransfer){
+    struct sockaddr_storage their_addr;
+    socklen_t addr_len;
+
+    while(check_ack(ToTransfer)){
+        char buffer[sizeof(struct header_seg)];
+        if(recvfrom(sockfd, buffer, sizeof(struct header_seg), 0, (struct sockaddr *)&their_addr, &addr_len) == -1){
+            perror("recvfrom");
+            if(errno != EAGAIN && errno != EWOULDBLOCK){
+                exit(EXIT_FAILURE);
             }
             for(int i = 0; i < cwnd && i < packet_in_total; i++){
                 int k = i;
@@ -188,58 +207,27 @@ void rsend(char* hostname,
         }
         break;
     }
+    printf("Handshake complete\n");
 
-    pthread_t send_thread, recv_thread; // 
-    pthread_mutex_init(&lock, NULL);
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 100000;
 
-    struct send_data_args *args = malloc(sizeof(struct send_data_args));
-    args->p = p;
-    args->sockfd = sockfd;
-    args->filename = filename;
-    args->ToTransfer = bytesToTransfer;
+    byte_sent = bytesToTransfer;  
 
-    pthread_create(&send_thread, NULL, send_data, (void*)args);
-    //pthread_create(&recv_thread, NULL, recv_data, (void*)p);
+    if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0){
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
 
-    pthread_join(send_thread, NULL);
-    //pthread_join(recv_thread, NULL);
+    unsigned long long int total_packets = (bytesToTransfer + DATA_LEN - 1) / DATA_LEN;
     
-    pthread_mutex_destroy(&lock);
-    
-    // if(p == NULL){
-    //     fprintf(stderr, "talker: failed to bind socket\n");
-    //     return 2;
-    // }
+    packet_window = malloc(total_packets * sizeof(struct header_seg));
+    ack_received = malloc(total_packets * sizeof(int));
 
-    // FILE *file = fopen(filename,"r");
-    // if(file == NULL){
-    //     fprintf(stderr, "File not found\n");
-    //     return;
-    // }
+    send_data(sockfd, p, filename, bytesToTransfer);
+    recv_data(sockfd, bytesToTransfer);
 
-    // char* buffer = malloc(bytesToTransfer);
-    // if(buffer == NULL){
-    //     free(buffer);
-    //     fprintf(stderr, "Memory allocation failed\n");
-    //     return;
-    // }
-
-    // size_t bytesRead = fread(buffer, 1, bytesToTransfer, file);
-    // if(bytesRead != bytesToTransfer){
-    //     if (feof(file)) {
-    //         printf("End of file reached after reading %zu bytes.\n", bytesRead);
-    //     } else if (ferror(file)) {
-    //         perror("Error reading file");
-    //     }
-    // }
-    // flcose(file);
-
-    // if(numbytes = sendto(sockfd, buffer, bytesToTransfer, 0, p->ai_addr, p->ai_addrlen) == -1){
-    //     perror("talker: sendto");
-    //     exit(1);
-    // }
-
-    // printf("sender: sent %d bytes to %s\n", numbytes, hostname);
     freeaddrinfo(servinfo);
     close(sockfd);
 }
