@@ -135,14 +135,14 @@ void rrecv(unsigned short int myUDPport,
             printf("Data Length: %d\n", ntohl(header->data_len));
             printf("Data: %s\n", data);
 
-            char packet[sizeof(struct header_seg)]; // +1 for null-terminator
+            char packet[sizeof(struct header_seg) + 1]; // +1 for null-terminator
 
             struct header_seg *header_2 = (struct header_seg*)packet;
             header_2->seq_number = ((header->seq_number));
             header_2->ack_number = ((header->ack_number));
             header_2->data_len = ((header->data_len));  
             
-            strncpy(header_2->data, "Received!", DATA_LEN);
+            // strncpy(header_2->data, "Received!", DATA_LEN);
 
             //sending reply
             if(ntohl(header->ack_number) == counter ){
@@ -160,6 +160,9 @@ void rrecv(unsigned short int myUDPport,
                 (struct sockaddr *)&their_addr, addr_len)) == -1) {
                 perror("talker: sendto");
                 exit(1);
+            }
+            else{
+                printf("ack sent");
             }
             memset(buf, 0, MAXBUFLEN);// clear the buffer 
         }

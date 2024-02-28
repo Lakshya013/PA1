@@ -100,6 +100,7 @@ int check_ack(){
 void recv_data(int sockfd, unsigned long long int ToTransfer){
     struct sockaddr_storage their_addr;
     socklen_t addr_len;
+    // char s[INET6_ADDRSTRLEN];
 
     while(check_ack(ToTransfer)){
         char buffer[sizeof(struct header_seg)];
@@ -108,6 +109,14 @@ void recv_data(int sockfd, unsigned long long int ToTransfer){
             if(errno != EAGAIN && errno != EWOULDBLOCK){
                 exit(EXIT_FAILURE);
             }
+
+        // inet_ntop(their_addr.ss_family,
+        // get_in_addr((struct sockaddr *)&their_addr),
+        // s, sizeof s);
+
+        // struct header_seg *header = (struct header_seg*)buffer;
+        // printf("Ack recvd for: %d\n", ntohl(header->ack_number));
+
             for(int i = 0; i < cwnd && i < packet_in_total; i++){
                 int k = i;
                 while(ack_received[k] != 0 && k < packet_in_total){k++;}
