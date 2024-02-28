@@ -15,10 +15,10 @@
 
 #define BUFFER_SIZE 8192
 #define TIMEOUT 1
-#define DATA_LEN 2000
+#define DATA_LEN 200 //how many bits sent in a packet
 #define INITIAL_SIZE 2
 
-unsigned long long int byte_sent = 0;
+unsigned long long int byte_to_send = 0;
 unsigned long long int packet_in_total = 0; 
 
 struct header_seg{
@@ -52,9 +52,8 @@ void send_data(int sockfd, struct addrinfo *p, char *filename, unsigned long lon
     packet_in_total = tot_pack;
     uint64_t seq_num = 0;
     for(int count = 0; count < tot_pack ; count++){
-        int to_send = DATA_LEN <= byte_sent ? DATA_LEN : byte_sent;
         
-        seq_num += to_send;
+        int to_send = DATA_LEN <= byte_to_send ? DATA_LEN : byte_to_send;
 
         char buffer[sizeof(struct header_seg)];
         struct header_seg *header = (struct header_seg*)buffer;
@@ -66,6 +65,8 @@ void send_data(int sockfd, struct addrinfo *p, char *filename, unsigned long lon
         }
         header->data[bytes_read] = '\0';
 
+        seq_num += bytes_read;
+
         header->seq_number = htonl(seq_num);
         header->ack_number = htonl(count);
         header->data_len = htonl(bytes_read);
@@ -73,9 +74,10 @@ void send_data(int sockfd, struct addrinfo *p, char *filename, unsigned long lon
         packet_window[count] = *header;
         ack_received[count] = 0;
 
-        byte_sent -= to_send;
+        byte_to_send -= to_send;
     }
     for(int i = 0; i < cwnd && i < tot_pack; i++){
+        //just sending one packet for now
         if(sendto(sockfd, (char*)&packet_window[i], sizeof(struct header_seg), 0, p->ai_addr, p->ai_addrlen) == -1){
             perror("sendto");
             exit(EXIT_FAILURE);
@@ -86,7 +88,7 @@ void send_data(int sockfd, struct addrinfo *p, char *filename, unsigned long lon
 }
 
 int check_ack(){
-
+//ack recvd? make boolean true
     for(int i = 0 ; i < packet_in_total; i++){
         if(ack_received[i] == 0){
             return 1;
@@ -102,7 +104,7 @@ void recv_data(int sockfd, unsigned long long int ToTransfer){
     while(check_ack(ToTransfer)){
         char buffer[sizeof(struct header_seg)];
         if(recvfrom(sockfd, buffer, sizeof(struct header_seg), 0, (struct sockaddr *)&their_addr, &addr_len) == -1){
-            perror("recvfrom");
+            perror("no acks received");
             if(errno != EAGAIN && errno != EWOULDBLOCK){
                 exit(EXIT_FAILURE);
             }
@@ -213,7 +215,7 @@ void rsend(char* hostname,
     timeout.tv_sec = 0;
     timeout.tv_usec = 100000;
 
-    byte_sent = bytesToTransfer;  
+    byte_to_send = bytesToTransfer;  
 
     if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0){
         perror("setsockopt");
