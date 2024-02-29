@@ -16,7 +16,6 @@
 #define MAXBUFLEN 8192
 #define DATA_LEN 2000
 
-int counter = 0;
 int total = 0;
 
 struct header_seg{
@@ -94,6 +93,7 @@ void rrecv(unsigned short int myUDPport,
     }
 
     printf("listener: waiting to recvfrom...\n");
+    int counter = 0;
     while(1){
 
         addr_len = sizeof their_addr;
@@ -122,7 +122,7 @@ void rrecv(unsigned short int myUDPport,
         if(ntohl(header->seq_number) > 100000){
             printf("%s \n", buf);
             memset(buf, 0, MAXBUFLEN);
-            if ((numbytes = sendto(sockfd, "Recived Boss!", 13, 0,
+            if ((numbytes = sendto(sockfd, "Handshake Complete!", 13, 0,
                 (struct sockaddr *)&their_addr, addr_len)) == -1) {
                 perror("talker: sendto");
                 exit(1);
@@ -138,13 +138,16 @@ void rrecv(unsigned short int myUDPport,
             char packet[sizeof(struct header_seg) + 1]; // +1 for null-terminator
 
             struct header_seg *header_2 = (struct header_seg*)packet;
-            header_2->seq_number = ((header->seq_number));
-            header_2->ack_number = ((header->ack_number));
+            header_2->seq_number = header->seq_number;
+            header_2->ack_number = htonl((counter));
+            //header_2->ack_number = ((header->ack_number));
             header_2->data_len = ((header->data_len));  
+
+            printf("\ncounter: %d\n", counter);
             
             // strncpy(header_2->data, "Received!", DATA_LEN);
 
-            //sending reply
+            //saving data to file
             if(ntohl(header->ack_number) == counter ){
                 total += strlen(data);
                 counter++;
@@ -155,16 +158,26 @@ void rrecv(unsigned short int myUDPport,
                 }
                 fputs(data, file);
                 fclose(file);
+
+            //sending back ack
             }
             if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
                 (struct sockaddr *)&their_addr, addr_len)) == -1) {
                 perror("talker: sendto");
                 exit(1);
             }
-            else{
-                printf("ack sent");
+
+            else {
+                //this is just for testing that the ack has been sent to the right address with the right sequence number
+                struct header_seg *header_test = (struct header_seg*)packet;
+                char ip[INET6_ADDRSTRLEN];
+                inet_ntop(their_addr.ss_family,
+                    get_in_addr((struct sockaddr *)&their_addr),
+                    ip, sizeof ip);
+                printf("\nAcknowldegement has been sent to %s for %d\n", ip, ntohl(header_test->ack_number)); // Modify the printf statement to correctly print the sequence number
             }
-            memset(buf, 0, MAXBUFLEN);// clear the buffer 
+
+            memset(buf, 0, MAXBUFLEN); // clear the buffer
         }
         printf("=============================================\n");
     //sending reply
