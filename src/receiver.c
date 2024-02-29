@@ -47,6 +47,7 @@ void rrecv(unsigned short int myUDPport,
     socklen_t addr_len;
     char s[INET6_ADDRSTRLEN];
     struct timeval tv;
+    int counter = 0;  //keep track of expected packets
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC; // set to AF_INET to force IPv4
@@ -93,9 +94,7 @@ void rrecv(unsigned short int myUDPport,
     }
 
     printf("listener: waiting to recvfrom...\n");
-    int counter = 0;
     while(1){
-
         addr_len = sizeof their_addr;
         int numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
         if (numbytes == -1) {
@@ -113,16 +112,16 @@ void rrecv(unsigned short int myUDPport,
             inet_ntop(their_addr.ss_family,
                 get_in_addr((struct sockaddr *)&their_addr),
                 s, sizeof s));
-        //print the message
         printf("=============================================\n");
         struct header_seg *header = (struct header_seg*)buf;
         char data[DATA_LEN];
         memcpy(data, header->data, DATA_LEN);
         //sequency number of handshake packet usally >> 10000
+        //this needs to be changed
         if(ntohl(header->seq_number) > 100000){
             printf("%s \n", buf);
             memset(buf, 0, MAXBUFLEN);
-            if ((numbytes = sendto(sockfd, "Handshake Complete!", 13, 0,
+            if ((numbytes = sendto(sockfd, "Let's Connect!", 20, 0,
                 (struct sockaddr *)&their_addr, addr_len)) == -1) {
                 perror("talker: sendto");
                 exit(1);
@@ -142,42 +141,52 @@ void rrecv(unsigned short int myUDPport,
             header_2->ack_number = htonl((counter));
             //header_2->ack_number = ((header->ack_number));
             header_2->data_len = ((header->data_len));  
-
-            printf("\ncounter: %d\n", counter);
-            
             // strncpy(header_2->data, "Received!", DATA_LEN);
 
-            //saving data to file
-            if(ntohl(header->ack_number) == counter ){
+
+            //packet loss
+            if (ntohl(header->ack_number) != counter) {
+                    // Send a triple ack to the sender, which will prompt the sender to resend the packet
+                    for (int i = 0; i < 3; i++) {
+                        if ((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
+                            (struct sockaddr *)&their_addr, addr_len)) == -1) {
+                            perror("Unable to send acknowledgement to sender\n");
+                            exit(1);
+                        }
+                    }
+                printf("Triple ACK sent for seq_number: %d\n", ntohl(header->seq_number)); 
+                } 
+
+            //expected pacekt received
+            else if (ntohl(header->ack_number) == counter) {
                 total += strlen(data);
                 counter++;
                 FILE *file = fopen("src/data.txt", "a+");
-                if(file == NULL){
+                if (file == NULL) {
                     printf("Error opening file!\n");
                     exit(1);
                 }
                 fputs(data, file);
                 fclose(file);
 
-            //sending back ack
-            }
-            if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
+                //send the acknowldegement
+                if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
                 (struct sockaddr *)&their_addr, addr_len)) == -1) {
-                perror("talker: sendto");
+                perror("Unable to send acknowledgement to sender\n");
                 exit(1);
             }
-
-            else {
-                //this is just for testing that the ack has been sent to the right address with the right sequence number
-                struct header_seg *header_test = (struct header_seg*)packet;
-                char ip[INET6_ADDRSTRLEN];
-                inet_ntop(their_addr.ss_family,
-                    get_in_addr((struct sockaddr *)&their_addr),
-                    ip, sizeof ip);
-                printf("\nAcknowldegement has been sent to %s for %d\n", ip, ntohl(header_test->ack_number)); // Modify the printf statement to correctly print the sequence number
+                else {
+                    //ack was succesfully sent
+                    struct header_seg *header_test = (struct header_seg*)packet;
+                    char ip[INET6_ADDRSTRLEN];
+                    inet_ntop(their_addr.ss_family,
+                        get_in_addr((struct sockaddr *)&their_addr),
+                        ip, sizeof ip);
+                    printf("\nAcknowldegement has been sent to %s for %d\n", ip, ntohl(header_test->ack_number));
             }
 
             memset(buf, 0, MAXBUFLEN); // clear the buffer
+            }
         }
         printf("=============================================\n");
     //sending reply

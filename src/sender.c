@@ -129,6 +129,8 @@ void recv_data(int sockfd, unsigned long long int ToTransfer){
             continue;
         }
         struct header_seg *header = (struct header_seg*)buffer;
+        //1) acks not being accessed properly, 2) handle triple acks (start retramissiting from the sequency number in packet received, with the the triple ack)
+        //(three packets will be sent simultaniusnly, with the same sequency_number and ack_number)
         if(ack_received[ntohl(header->ack_number)]){
             // Duplicate ack
             ssthresh = cwnd / 2;
