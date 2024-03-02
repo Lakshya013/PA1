@@ -12,8 +12,8 @@
 #include <errno.h>
 
 #define HOSTNAME "127.0.0.1"
-#define MAXBUFLEN 3000*6 //8192
-#define DATA_LEN 3000
+#define MAXBUFLEN 5000*10
+#define DATA_LEN 5000
 
 int counter = 0;
 int total = 0;
@@ -150,8 +150,8 @@ void rrecv(unsigned short int myUDPport,
         }
         else{
             //counter dosent match ACK number of packet? We have packet loss
-            for(int i = 0; i<1 && counter > 3;i++){
-                header->ack_number = htonl(counter-1);
+            for(int i = 0; i<2;i++){
+                header_2->ack_number = htonl(counter);
                 if((numbytes = sendto(sockfd, buf, sizeof(struct header_seg), 0,
                 (struct sockaddr *)&their_addr, addr_len)) == -1) {
                 perror("talker: sendto");

@@ -14,7 +14,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 
-#define DATA_LEN 3000
+#define DATA_LEN 5000
 
 //unsigned long long int DATA_LEN = 1024;
 unsigned long long int byte_sent = 0;
@@ -129,6 +129,7 @@ void sendData_recvAck(int sockfd, struct addrinfo *p,unsigned long long int ToTr
                 cwnd += 1/cwnd;
             }
         }
+        //retranmission logic, when duplicate ack received
         for(int i = 0; i < packet_in_total; i++){
             if(ack_received[i] == 0){
                 index = i;
