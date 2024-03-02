@@ -11,20 +11,21 @@
 #include <pthread.h>
 #include <errno.h>
 
-#define MYPORT "4950"    // the port users will be connecting to
 #define HOSTNAME "127.0.0.1"
-#define MAXBUFLEN 8192
-#define DATA_LEN 2000
+#define MAXBUFLEN 3000*6 //8192
+#define DATA_LEN 3000
 
+int counter = 0;
 int total = 0;
 
 struct header_seg{
     uint64_t seq_number;
     uint64_t ack_number;
     uint64_t data_len;
+    uint64_t  start;
+    uint64_t  fin;
     char data[DATA_LEN];
 };
-
 
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -35,8 +36,8 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-void rrecv(unsigned short int myUDPport, 
-            char* destinationFile, 
+void rrecv(unsigned short int myUDPport,
+            char* destinationFile,
             unsigned long long int writeRate) {
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
@@ -46,8 +47,7 @@ void rrecv(unsigned short int myUDPport,
     char buf[MAXBUFLEN];
     socklen_t addr_len;
     char s[INET6_ADDRSTRLEN];
-    struct timeval tv;
-    int counter = 0;  //keep track of expected packets
+    (void )writeRate;
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC; // set to AF_INET to force IPv4
@@ -84,110 +84,91 @@ void rrecv(unsigned short int myUDPport,
     }
 
     freeaddrinfo(servinfo);
-
-        // Set the timeout for recvfrom
-    tv.tv_sec = 5;  // 5 Seconds
-    tv.tv_usec = 0;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) == -1) {
-        perror("setsockopt");
-        exit(1);
-    }
-
     printf("listener: waiting to recvfrom...\n");
     while(1){
         addr_len = sizeof their_addr;
-        int numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1, 0, (struct sockaddr *)&their_addr, &addr_len);
-        if (numbytes == -1) {
-            if (errno == EWOULDBLOCK || errno == EAGAIN) {
-                printf("Timeout reached. No packets received for 5 seconds.\n");
-                printf("Connection closed.\n");
-                break; // Exit the loop on timeout
-            } else {
-                perror("recvfrom");
-                exit(1);
-            }
+        if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
+            (struct sockaddr *)&their_addr, &addr_len)) == -1) {
+            perror("recvfrom");
+            exit(1);
         }
 
         printf("listener: got packet from %s\n",
             inet_ntop(their_addr.ss_family,
                 get_in_addr((struct sockaddr *)&their_addr),
                 s, sizeof s));
+        //print the message
         printf("=============================================\n");
         struct header_seg *header = (struct header_seg*)buf;
         char data[DATA_LEN];
         memcpy(data, header->data, DATA_LEN);
-        //sequency number of handshake packet usally >> 10000
-        //this needs to be changed
-        if(ntohl(header->seq_number) > 100000){
-            printf("%s \n", buf);
+
+        if(ntohl(header->fin)){
+            printf("FIN received\n");
+            counter = 0;
             memset(buf, 0, MAXBUFLEN);
-            if ((numbytes = sendto(sockfd, "Let's Connect!", 20, 0,
-                (struct sockaddr *)&their_addr, addr_len)) == -1) {
-                perror("talker: sendto");
+            printf("closing this socket\n");
+            char packet[sizeof(struct header_seg)]; // +1 for null-terminator
+            if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
+            (struct sockaddr *)&their_addr, addr_len)) == -1) {
+            perror("talker: sendto");
+            exit(1);
+            }
+            printf("=============================================\n");
+            break;
+        }
+        printf("Seq Number: %d\n", ntohl(header->seq_number));
+        printf("Ack Number: %d\n", ntohl(header->ack_number));
+        printf("Data Length: %d\n", ntohl(header->data_len));
+
+        char packet[sizeof(struct header_seg)]; // +1 for null-terminator
+
+        struct header_seg *header_2 = (struct header_seg*)packet;
+        header_2->seq_number = ((header->seq_number));
+        header_2->ack_number = ((header->ack_number));
+        header_2->data_len = ((header->data_len));
+
+        strncpy(header_2->data, "Received!", DATA_LEN);
+
+        //sending reply
+        if(ntohl(header->ack_number) == counter && !ntohl(header->start) &&
+        !ntohl(header->fin)){
+            total += strlen(data);
+            counter++;
+            FILE *file = fopen(destinationFile, "a+");
+            if(file == NULL){
+                printf("Error opening file!\n");
                 exit(1);
+            }
+            fputs(data, file);
+            fclose(file);
+            if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
+            (struct sockaddr *)&their_addr, addr_len)) == -1) {
+            perror("talker: sendto");
+            exit(1);
             }
         }
         else{
-            
-            printf("Seq Number: %d\n", ntohl(header->seq_number));
-            printf("Ack Number: %d\n", ntohl(header->ack_number));
-            printf("Data Length: %d\n", ntohl(header->data_len));
-            printf("Data: %s\n", data);
-
-            char packet[sizeof(struct header_seg) + 1]; // +1 for null-terminator
-
-            struct header_seg *header_2 = (struct header_seg*)packet;
-            header_2->seq_number = header->seq_number;
-            header_2->ack_number = htonl((counter));
-            //header_2->ack_number = ((header->ack_number));
-            header_2->data_len = ((header->data_len));  
-            // strncpy(header_2->data, "Received!", DATA_LEN);
-
-
-            //packet loss
-            if (ntohl(header->ack_number) != counter) {
-                    // Send a triple ack to the sender, which will prompt the sender to resend the packet
-                    for (int i = 0; i < 3; i++) {
-                        if ((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
-                            (struct sockaddr *)&their_addr, addr_len)) == -1) {
-                            perror("Unable to send acknowledgement to sender\n");
-                            exit(1);
-                        }
-                    }
-                printf("Triple ACK sent for seq_number: %d\n", ntohl(header->seq_number)); 
-                } 
-
-            //expected pacekt received
-            else if (ntohl(header->ack_number) == counter) {
-                total += strlen(data);
-                counter++;
-                FILE *file = fopen("src/data.txt", "a+");
-                if (file == NULL) {
-                    printf("Error opening file!\n");
-                    exit(1);
-                }
-                fputs(data, file);
-                fclose(file);
-
-                //send the acknowldegement
-                if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
+            //counter dosent match ACK number of packet? We have packet loss
+            for(int i = 0; i<1 && counter > 3;i++){
+                header->ack_number = htonl(counter-1);
+                if((numbytes = sendto(sockfd, buf, sizeof(struct header_seg), 0,
                 (struct sockaddr *)&their_addr, addr_len)) == -1) {
-                perror("Unable to send acknowledgement to sender\n");
+                perror("talker: sendto");
                 exit(1);
-            }
-                else {
-                    //ack was succesfully sent
-                    struct header_seg *header_test = (struct header_seg*)packet;
-                    char ip[INET6_ADDRSTRLEN];
-                    inet_ntop(their_addr.ss_family,
-                        get_in_addr((struct sockaddr *)&their_addr),
-                        ip, sizeof ip);
-                    printf("\nAcknowldegement has been sent to %s for %d\n", ip, ntohl(header_test->ack_number));
-            }
-
-            memset(buf, 0, MAXBUFLEN); // clear the buffer
+                }
             }
         }
+        if(ntohl(header->start)){
+            printf("Hand Shaking!\n");
+            char packet[sizeof(struct header_seg)]; // +1 for null-terminator
+            if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
+            (struct sockaddr *)&their_addr, addr_len)) == -1) {
+            perror("talker: sendto");
+            exit(1);
+            }
+        }
+        memset(buf, 0, MAXBUFLEN);// clear the buffer
         printf("=============================================\n");
     //sending reply
     }
@@ -210,5 +191,5 @@ int main(int argc, char** argv) {
 
     udpPort = (unsigned short int) atoi(argv[1]);
     rrecv(udpPort, argv[2], 0);
-    return 0; 
+    return 0;
 }
