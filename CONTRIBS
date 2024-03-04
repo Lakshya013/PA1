@@ -1,0 +1,24 @@
+Contributions to the project:
+- Madhav Kapoor:
+    - Implemented the receiver module.
+    - Added error handling and input validation for receiving data.
+    - Optimized the performance of the receiver algorithm.
+    - Implemented the file handling and data storage mechanism.
+    - Implemented sliding window in sender
+    - Assisted in debugging and troubleshooting issues.
+
+- Lakshya Saroha:
+    - Developed the sender module.
+    - Implemented data encoding and packetization.
+    - Added support for reliable data transmission.
+    - Implemented error detection and correction mechanisms.
+    - Conducted performance testing and optimization.
+
+- We also coded together to:
+    - Provided code suggestions and assisted in writing the code.
+    - Offered guidance on best practices and software design principles.
+    - Helped with debugging and resolving issues.
+    - Assisted in writing documentation and comments.
+    - Collaborated throughout the development process.
+
+We are proud of our collaborative effort and the successful completion of the project.

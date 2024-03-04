@@ -1,3 +1,16 @@
+/**
+ * @file receiver.c
+ * @brief Implementation of a UDP receiver for file transfer
+ *
+ * This file contains the implementation of a UDP receiver used for file transfer.
+ * It includes functions to handle receiving packets, writing data to a file, and
+ * sending acknowledgment packets.
+ *
+ * @author [Lakshya Saroha] ([Lakshya013])
+ * @author [Madhav Kappor] ([madhavkapoor1])
+ * @bug No known bugs just don't handle different writerates.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,37 +24,57 @@
 #include <pthread.h>
 #include <errno.h>
 
-#define HOSTNAME "127.0.0.1"
-#define MAXBUFLEN 5000*10
-#define DATA_LEN 5000
+#define MAXBUFLEN 2000*30
+#define DATA_LEN 2000
 
 int counter = 0;
 int total = 0;
 
+/**
+ * @brief Struct representing the header segment of a packet
+ */
 struct header_seg{
-    uint64_t seq_number;
-    uint64_t ack_number;
-    uint64_t data_len;
-    uint64_t  start;
-    uint64_t  fin;
-    char data[DATA_LEN];
+    uint64_t seq_number; /**< Sequence number */
+    uint64_t ack_number; /**< Acknowledgment number */
+    uint64_t data_len; /**< Length of data */
+    uint64_t  start; /**< Start flag */
+    uint64_t  fin; /**< Finish flag */
+    char data[DATA_LEN]; /**< Data payload */
 };
 
+/**
+ * @brief Retrieves the IP address from a sockaddr structure
+ *
+ * @param sa Pointer to the sockaddr structure
+ * @return Pointer to the IP address
+ */
 void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) {
         return &(((struct sockaddr_in*)sa)->sin_addr);
     }
-
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+/**
+ * @brief Receives TCP packets , implemented using UDP, and handles them accordingly
+ *
+ * This function listens for packets on the specified port, receives them,
+ * and processes them according to the protocol. It handles both in-order and
+ * out-of-order packets, sends acknowledgments, and writes received data to
+ * the specified file. Additionally, it performs handshaking with the sender
+ * to establish and terminate the connection.
+ * It write on the file only if the packet is in order.
+ * else send the duplicate acks.
+ *
+ * @param myUDPport The UDP port to listen on
+ * @param destinationFile The file to write the received data to
+ * @param writeRate The rate at which data should be written (unused)
+ */
 void rrecv(unsigned short int myUDPport,
             char* destinationFile,
             unsigned long long int writeRate) {
     int sockfd;
-    struct addrinfo hints, *servinfo, *p;
-    int rv;
     int numbytes;
     struct sockaddr_storage their_addr;
     char buf[MAXBUFLEN];
@@ -49,41 +82,24 @@ void rrecv(unsigned short int myUDPport,
     char s[INET6_ADDRSTRLEN];
     (void )writeRate;
 
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC; // set to AF_INET to force IPv4
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = AI_PASSIVE; // use my IP
+    struct sockaddr_in my_addr;
 
-    char UDPport[6];
-    sprintf(UDPport, "%d", myUDPport);
-    if ((rv = getaddrinfo(HOSTNAME, UDPport, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_port = htons(myUDPport);
+    my_addr.sin_addr.s_addr = INADDR_ANY; // use my IP
+    memset(my_addr.sin_zero, '\0', sizeof my_addr.sin_zero);
+
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+        perror("listener: socket");
         return;
     }
 
-    // loop through all the results and bind to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((sockfd = socket(p->ai_family, p->ai_socktype,
-                p->ai_protocol)) == -1) {
-            perror("listener: socket");
-            continue;
-        }
-
-        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            close(sockfd);
-            perror("listener: bind");
-            continue;
-        }
-
-        break;
-    }
-
-    if (p == NULL) {
-        fprintf(stderr, "listener: failed to bind socket\n");
+    if (bind(sockfd, (struct sockaddr *)&my_addr, sizeof my_addr) == -1) {
+        close(sockfd);
+        perror("listener: bind");
         return;
     }
 
-    freeaddrinfo(servinfo);
     printf("listener: waiting to recvfrom...\n");
     while(1){
         addr_len = sizeof their_addr;
@@ -93,33 +109,22 @@ void rrecv(unsigned short int myUDPport,
             exit(1);
         }
 
-        printf("listener: got packet from %s\n",
-            inet_ntop(their_addr.ss_family,
-                get_in_addr((struct sockaddr *)&their_addr),
-                s, sizeof s));
-        //print the message
-        printf("=============================================\n");
         struct header_seg *header = (struct header_seg*)buf;
         char data[DATA_LEN];
         memcpy(data, header->data, DATA_LEN);
 
         if(ntohl(header->fin)){
-            printf("FIN received\n");
             counter = 0;
             memset(buf, 0, MAXBUFLEN);
-            printf("closing this socket\n");
+            printf("Connection Closed\n");
             char packet[sizeof(struct header_seg)]; // +1 for null-terminator
             if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
             (struct sockaddr *)&their_addr, addr_len)) == -1) {
             perror("talker: sendto");
             exit(1);
             }
-            printf("=============================================\n");
-            break;
+            exit(1);
         }
-        printf("Seq Number: %d\n", ntohl(header->seq_number));
-        printf("Ack Number: %d\n", ntohl(header->ack_number));
-        printf("Data Length: %d\n", ntohl(header->data_len));
 
         char packet[sizeof(struct header_seg)]; // +1 for null-terminator
 
@@ -130,9 +135,21 @@ void rrecv(unsigned short int myUDPport,
 
         strncpy(header_2->data, "Received!", DATA_LEN);
 
+        if(ntohl(header->start)){
+            printf("Hand Shaking!\n");
+            printf("=============================================\n");
+            char packet[sizeof(struct header_seg)]; // +1 for null-terminator
+            if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
+            (struct sockaddr *)&their_addr, addr_len)) == -1) {
+            perror("talker: sendto");
+            exit(1);
+            }
+        }
+
         //sending reply
-        if(ntohl(header->ack_number) == counter && !ntohl(header->start) &&
-        !ntohl(header->fin)){
+        if(ntohl(header->ack_number) == counter && !ntohl(header->start)){
+            // ("In order Packet");
+            // ("ACK sent for ");
             total += strlen(data);
             counter++;
             FILE *file = fopen(destinationFile, "a+");
@@ -149,39 +166,39 @@ void rrecv(unsigned short int myUDPport,
             }
         }
         else{
-            //counter dosent match ACK number of packet? We have packet loss
+            // ("Out of order Packet");
+            // ("Duplicate ACK sent");
             for(int i = 0; i<2;i++){
-                header_2->ack_number = htonl(counter);
+                if (counter - 2 != 0) {
+                    header_2->ack_number = htonl(counter);
+                } else {
+                    header_2->ack_number = htonl(counter - 2);
+                }
                 if((numbytes = sendto(sockfd, buf, sizeof(struct header_seg), 0,
                 (struct sockaddr *)&their_addr, addr_len)) == -1) {
                 perror("talker: sendto");
                 exit(1);
                 }
             }
+            memset(buf, 0, MAXBUFLEN);// clear the buffer
         }
-        if(ntohl(header->start)){
-            printf("Hand Shaking!\n");
-            char packet[sizeof(struct header_seg)]; // +1 for null-terminator
-            if((numbytes = sendto(sockfd, packet, sizeof(struct header_seg), 0,
-            (struct sockaddr *)&their_addr, addr_len)) == -1) {
-            perror("talker: sendto");
-            exit(1);
-            }
-        }
-        memset(buf, 0, MAXBUFLEN);// clear the buffer
-        printf("=============================================\n");
     //sending reply
     }
     close(sockfd);
     return;
 }
 
+/**
+ * @brief Main function
+ *
+ * The main function of the receiver program. It parses command-line arguments
+ * and invokes the rrecv function to start receiving data.
+ *
+ * @param argc Number of command-line arguments
+ * @param argv Array of command-line arguments
+ * @return 0 on success, non-zero on failure
+ */
 int main(int argc, char** argv) {
-    // This is a skeleton of a main function.
-    // You should implement this function more completely
-    // so that one can invoke the file transfer from the
-    // command line.
-
     unsigned short int udpPort;
 
     if (argc != 3) {
