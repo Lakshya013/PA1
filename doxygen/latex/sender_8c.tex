@@ -1,0 +1,234 @@
+\hypertarget{sender_8c}{}\doxysection{/home/madhavkapoor/repos/\+ELEC331/\+PA1/src/sender.c File Reference}
+\label{sender_8c}\index{/home/madhavkapoor/repos/ELEC331/PA1/src/sender.c@{/home/madhavkapoor/repos/ELEC331/PA1/src/sender.c}}
+
+
+Implementation of a UDP receiver for file transfer.  
+
+
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include $<$arpa/inet.\+h$>$}\newline
+{\ttfamily \#include $<$netinet/in.\+h$>$}\newline
+{\ttfamily \#include $<$netdb.\+h$>$}\newline
+{\ttfamily \#include $<$sys/types.\+h$>$}\newline
+{\ttfamily \#include $<$sys/socket.\+h$>$}\newline
+{\ttfamily \#include $<$unistd.\+h$>$}\newline
+{\ttfamily \#include $<$sys/stat.\+h$>$}\newline
+{\ttfamily \#include $<$pthread.\+h$>$}\newline
+{\ttfamily \#include $<$errno.\+h$>$}\newline
+{\ttfamily \#include $<$limits.\+h$>$}\newline
+{\ttfamily \#include $<$sys/time.\+h$>$}\newline
+Include dependency graph for sender.\+c\+:
+% FIG 0
+\doxysubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structheader__seg}{header\+\_\+seg}}
+\begin{DoxyCompactList}\small\item\em Struct representing the header segment of a packet. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\#define \mbox{\hyperlink{sender_8c_af02e45f15080b8ec9dd7b286157617ff}{DATA\+\_\+\+LEN}}~1024
+\end{DoxyCompactItemize}
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void $\ast$ \mbox{\hyperlink{sender_8c_a294867ba9d7ff47e39d421134d8e12ab}{get\+\_\+in\+\_\+addr}} (struct sockaddr $\ast$sa)
+\item 
+void \mbox{\hyperlink{sender_8c_aa97dc7251f2579873621e1b81953d898}{make\+\_\+packets}} (int sockfd, struct addrinfo $\ast$p, char $\ast$filename, unsigned long long int To\+Transfer)
+\begin{DoxyCompactList}\small\item\em Creates packets from a file to be sent over a network connection. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{sender_8c_abcac4d509c04a27ff0cbc0f176326f8b}{check\+\_\+ack}} ()
+\item 
+void \mbox{\hyperlink{sender_8c_a66ad7da2ecc0d135515557c89edbf3b6}{send\+\_\+and\+\_\+recv\+\_\+data}} (int sockfd, struct addrinfo $\ast$p, unsigned long long int To\+Transfer)
+\begin{DoxyCompactList}\small\item\em Sends and receives data over a socket. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{sender_8c_a345cd3b130b71a5a4cb1a2e4bea80677}{connect\+\_\+udp}} (int sockfd, struct addrinfo $\ast$p)
+\item 
+void \mbox{\hyperlink{sender_8c_a470031165b913666b8a71d2b05ba7815}{rsend}} (char $\ast$hostname, unsigned short int host\+UDPport, char $\ast$filename, unsigned long long int bytes\+To\+Transfer)
+\item 
+int \mbox{\hyperlink{sender_8c_a3c04138a5bfe5d72780bb7e82a18e627}{main}} (int argc, char $\ast$$\ast$argv)
+\end{DoxyCompactItemize}
+\doxysubsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+unsigned long long int \mbox{\hyperlink{sender_8c_a72dedfb8b9387f5f2c154f2c8e5dc22e}{byte\+\_\+sent}} = 0
+\item 
+unsigned long long int \mbox{\hyperlink{sender_8c_a0e2774f86598595b46e78553cbbba18a}{packet\+\_\+in\+\_\+total}} = 0
+\item 
+struct \mbox{\hyperlink{structheader__seg}{header\+\_\+seg}} $\ast$ \mbox{\hyperlink{sender_8c_a5e05456d0b7c43003b0b47da21ec7629}{packet\+\_\+window}}
+\item 
+int $\ast$ \mbox{\hyperlink{sender_8c_a8d29a93719ff59c027782a99e5bef111}{ack\+\_\+received}}
+\item 
+int \mbox{\hyperlink{sender_8c_ac945140a09dc08475e3dc405d23a0850}{cwnd}} = 1
+\item 
+int \mbox{\hyperlink{sender_8c_a489163d32bf91b857501072a9861877b}{ssthresh}} = INT\+\_\+\+MAX
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Implementation of a UDP receiver for file transfer. 
+
+This file contains the implementation of a UDP receiver used for file transfer. It includes functions to handle receiving packets, writing data to a file, and sending acknowledgment packets.
+
+\begin{DoxyAuthor}{Author}
+\mbox{[}Lakshya Saroha\mbox{]} (\mbox{[}Lakshya013\mbox{]}) 
+
+\mbox{[}Madhav Kapoor\mbox{]} (\mbox{[}madhavkapoor1\mbox{]}) 
+\end{DoxyAuthor}
+\begin{DoxyRefDesc}{Bug}
+\item[\mbox{\hyperlink{bug__bug000002}{Bug}}]No known bugs just don\textquotesingle{}t handle different writerates. \end{DoxyRefDesc}
+
+
+\doxysubsection{Macro Definition Documentation}
+\mbox{\Hypertarget{sender_8c_af02e45f15080b8ec9dd7b286157617ff}\label{sender_8c_af02e45f15080b8ec9dd7b286157617ff}} 
+\index{sender.c@{sender.c}!DATA\_LEN@{DATA\_LEN}}
+\index{DATA\_LEN@{DATA\_LEN}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{DATA\_LEN}{DATA\_LEN}}
+{\footnotesize\ttfamily \#define DATA\+\_\+\+LEN~1024}
+
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{sender_8c_abcac4d509c04a27ff0cbc0f176326f8b}\label{sender_8c_abcac4d509c04a27ff0cbc0f176326f8b}} 
+\index{sender.c@{sender.c}!check\_ack@{check\_ack}}
+\index{check\_ack@{check\_ack}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{check\_ack()}{check\_ack()}}
+{\footnotesize\ttfamily int check\+\_\+ack (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+Checks if all the packets have been acknowledged.
+
+\begin{DoxyReturn}{Returns}
+1 if there are unacknowledged packets, 0 otherwise. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{sender_8c_a345cd3b130b71a5a4cb1a2e4bea80677}\label{sender_8c_a345cd3b130b71a5a4cb1a2e4bea80677}} 
+\index{sender.c@{sender.c}!connect\_udp@{connect\_udp}}
+\index{connect\_udp@{connect\_udp}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{connect\_udp()}{connect\_udp()}}
+{\footnotesize\ttfamily int connect\+\_\+udp (\begin{DoxyParamCaption}\item[{int}]{sockfd,  }\item[{struct addrinfo $\ast$}]{p }\end{DoxyParamCaption})}
+
+Establishes a UDP connection with the specified socket and address information.
+
+
+\begin{DoxyParams}{Parameters}
+{\em sockfd} & The socket file descriptor. \\
+\hline
+{\em p} & The address information. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+0 if the connection is successfully established, -\/1 otherwise. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{sender_8c_a294867ba9d7ff47e39d421134d8e12ab}\label{sender_8c_a294867ba9d7ff47e39d421134d8e12ab}} 
+\index{sender.c@{sender.c}!get\_in\_addr@{get\_in\_addr}}
+\index{get\_in\_addr@{get\_in\_addr}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{get\_in\_addr()}{get\_in\_addr()}}
+{\footnotesize\ttfamily void$\ast$ get\+\_\+in\+\_\+addr (\begin{DoxyParamCaption}\item[{struct sockaddr $\ast$}]{sa }\end{DoxyParamCaption})}
+
+\mbox{\Hypertarget{sender_8c_a3c04138a5bfe5d72780bb7e82a18e627}\label{sender_8c_a3c04138a5bfe5d72780bb7e82a18e627}} 
+\index{sender.c@{sender.c}!main@{main}}
+\index{main@{main}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{main()}{main()}}
+{\footnotesize\ttfamily int main (\begin{DoxyParamCaption}\item[{int}]{argc,  }\item[{char $\ast$$\ast$}]{argv }\end{DoxyParamCaption})}
+
+\mbox{\Hypertarget{sender_8c_aa97dc7251f2579873621e1b81953d898}\label{sender_8c_aa97dc7251f2579873621e1b81953d898}} 
+\index{sender.c@{sender.c}!make\_packets@{make\_packets}}
+\index{make\_packets@{make\_packets}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{make\_packets()}{make\_packets()}}
+{\footnotesize\ttfamily void make\+\_\+packets (\begin{DoxyParamCaption}\item[{int}]{sockfd,  }\item[{struct addrinfo $\ast$}]{p,  }\item[{char $\ast$}]{filename,  }\item[{unsigned long long int}]{To\+Transfer }\end{DoxyParamCaption})}
+
+
+
+Creates packets from a file to be sent over a network connection. 
+
+This function reads data from a file and creates packets to be sent over a network connection. Each packet contains a header segment and a portion of the file\textquotesingle{}s data. The function calculates the total number of packets needed to transfer the entire file. It then iterates over the file, reading a portion of the data and creating a packet for each portion. The packet\textquotesingle{}s header segment is populated with sequence number, acknowledgment number, data length, start flag, and fin flag. The function also updates the packet window and acknowledgment received arrays. Finally, it prints the total number of packets to be sent and closes the file.
+
+
+\begin{DoxyParams}{Parameters}
+{\em sockfd} & The socket file descriptor for the network connection. \\
+\hline
+{\em p} & The address information for the network connection. \\
+\hline
+{\em filename} & The name of the file to read data from. \\
+\hline
+{\em To\+Transfer} & The total number of bytes to transfer from the file. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{sender_8c_a470031165b913666b8a71d2b05ba7815}\label{sender_8c_a470031165b913666b8a71d2b05ba7815}} 
+\index{sender.c@{sender.c}!rsend@{rsend}}
+\index{rsend@{rsend}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{rsend()}{rsend()}}
+{\footnotesize\ttfamily void rsend (\begin{DoxyParamCaption}\item[{char $\ast$}]{hostname,  }\item[{unsigned short int}]{host\+UDPport,  }\item[{char $\ast$}]{filename,  }\item[{unsigned long long int}]{bytes\+To\+Transfer }\end{DoxyParamCaption})}
+
+Sends data to a specified host using UDP protocol.
+
+
+\begin{DoxyParams}{Parameters}
+{\em hostname} & The hostname or IP address of the destination host. \\
+\hline
+{\em host\+UDPport} & The UDP port number of the destination host. \\
+\hline
+{\em filename} & The name of the file to be sent. \\
+\hline
+{\em bytes\+To\+Transfer} & The number of bytes to be transferred. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{sender_8c_a66ad7da2ecc0d135515557c89edbf3b6}\label{sender_8c_a66ad7da2ecc0d135515557c89edbf3b6}} 
+\index{sender.c@{sender.c}!send\_and\_recv\_data@{send\_and\_recv\_data}}
+\index{send\_and\_recv\_data@{send\_and\_recv\_data}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{send\_and\_recv\_data()}{send\_and\_recv\_data()}}
+{\footnotesize\ttfamily void send\+\_\+and\+\_\+recv\+\_\+data (\begin{DoxyParamCaption}\item[{int}]{sockfd,  }\item[{struct addrinfo $\ast$}]{p,  }\item[{unsigned long long int}]{To\+Transfer }\end{DoxyParamCaption})}
+
+
+
+Sends and receives data over a socket. 
+
+This function sends packets of data over the specified socket and receives acknowledgments from the receiver. It uses a sliding window protocol to control the number of packets sent at a time. The function continues sending packets and receiving acknowledgments until all packets have been acknowledged.
+
+
+\begin{DoxyParams}{Parameters}
+{\em sockfd} & The socket file descriptor. \\
+\hline
+{\em p} & Pointer to the address information. \\
+\hline
+{\em To\+Transfer} & The total number of packets to transfer. \\
+\hline
+\end{DoxyParams}
+
+
+\doxysubsection{Variable Documentation}
+\mbox{\Hypertarget{sender_8c_a8d29a93719ff59c027782a99e5bef111}\label{sender_8c_a8d29a93719ff59c027782a99e5bef111}} 
+\index{sender.c@{sender.c}!ack\_received@{ack\_received}}
+\index{ack\_received@{ack\_received}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{ack\_received}{ack\_received}}
+{\footnotesize\ttfamily int$\ast$ ack\+\_\+received}
+
+\mbox{\Hypertarget{sender_8c_a72dedfb8b9387f5f2c154f2c8e5dc22e}\label{sender_8c_a72dedfb8b9387f5f2c154f2c8e5dc22e}} 
+\index{sender.c@{sender.c}!byte\_sent@{byte\_sent}}
+\index{byte\_sent@{byte\_sent}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{byte\_sent}{byte\_sent}}
+{\footnotesize\ttfamily unsigned long long int byte\+\_\+sent = 0}
+
+\mbox{\Hypertarget{sender_8c_ac945140a09dc08475e3dc405d23a0850}\label{sender_8c_ac945140a09dc08475e3dc405d23a0850}} 
+\index{sender.c@{sender.c}!cwnd@{cwnd}}
+\index{cwnd@{cwnd}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{cwnd}{cwnd}}
+{\footnotesize\ttfamily int cwnd = 1}
+
+\mbox{\Hypertarget{sender_8c_a0e2774f86598595b46e78553cbbba18a}\label{sender_8c_a0e2774f86598595b46e78553cbbba18a}} 
+\index{sender.c@{sender.c}!packet\_in\_total@{packet\_in\_total}}
+\index{packet\_in\_total@{packet\_in\_total}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{packet\_in\_total}{packet\_in\_total}}
+{\footnotesize\ttfamily unsigned long long int packet\+\_\+in\+\_\+total = 0}
+
+\mbox{\Hypertarget{sender_8c_a5e05456d0b7c43003b0b47da21ec7629}\label{sender_8c_a5e05456d0b7c43003b0b47da21ec7629}} 
+\index{sender.c@{sender.c}!packet\_window@{packet\_window}}
+\index{packet\_window@{packet\_window}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{packet\_window}{packet\_window}}
+{\footnotesize\ttfamily struct \mbox{\hyperlink{structheader__seg}{header\+\_\+seg}}$\ast$ packet\+\_\+window}
+
+\mbox{\Hypertarget{sender_8c_a489163d32bf91b857501072a9861877b}\label{sender_8c_a489163d32bf91b857501072a9861877b}} 
+\index{sender.c@{sender.c}!ssthresh@{ssthresh}}
+\index{ssthresh@{ssthresh}!sender.c@{sender.c}}
+\doxysubsubsection{\texorpdfstring{ssthresh}{ssthresh}}
+{\footnotesize\ttfamily int ssthresh = INT\+\_\+\+MAX}
+

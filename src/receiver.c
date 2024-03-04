@@ -7,7 +7,7 @@
  * sending acknowledgment packets.
  *
  * @author [Lakshya Saroha] ([Lakshya013])
- * @author [Madhav Kappor] ([madhavkapoor1])
+ * @author [Madhav Kapoor] ([madhavkapoor1])
  * @bug No known bugs just don't handle different writerates.
  */
 

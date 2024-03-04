@@ -1,3 +1,15 @@
+/**
+ * @file sender.c
+ * @brief Implementation of a UDP receiver for file transfer
+ *
+ * This file contains the implementation of a UDP receiver used for file transfer.
+ * It includes functions to handle receiving packets, writing data to a file, and
+ * sending acknowledgment packets.
+ *
+ * @author [Lakshya Saroha] ([Lakshya013])
+ * @author [Madhav Kapoor] ([madhavkapoor1])
+ * @bug No known bugs just don't handle different writerates.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

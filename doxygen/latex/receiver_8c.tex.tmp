@@ -1,0 +1,156 @@
+\hypertarget{receiver_8c}{}\doxysection{/home/madhavkapoor/repos/\+ELEC331/\+PA1/src/receiver.c File Reference}
+\label{receiver_8c}\index{/home/madhavkapoor/repos/ELEC331/PA1/src/receiver.c@{/home/madhavkapoor/repos/ELEC331/PA1/src/receiver.c}}
+
+
+Implementation of a UDP receiver for file transfer.  
+
+
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include $<$arpa/inet.\+h$>$}\newline
+{\ttfamily \#include $<$netinet/in.\+h$>$}\newline
+{\ttfamily \#include $<$netdb.\+h$>$}\newline
+{\ttfamily \#include $<$sys/types.\+h$>$}\newline
+{\ttfamily \#include $<$sys/socket.\+h$>$}\newline
+{\ttfamily \#include $<$unistd.\+h$>$}\newline
+{\ttfamily \#include $<$pthread.\+h$>$}\newline
+{\ttfamily \#include $<$errno.\+h$>$}\newline
+Include dependency graph for receiver.\+c\+:
+% FIG 0
+\doxysubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structheader__seg}{header\+\_\+seg}}
+\begin{DoxyCompactList}\small\item\em Struct representing the header segment of a packet. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\#define \mbox{\hyperlink{receiver_8c_a0c51b9a83d264825d6d303edd784e889}{MAXBUFLEN}}~2000$\ast$30
+\item 
+\#define \mbox{\hyperlink{receiver_8c_af02e45f15080b8ec9dd7b286157617ff}{DATA\+\_\+\+LEN}}~2000
+\end{DoxyCompactItemize}
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void $\ast$ \mbox{\hyperlink{receiver_8c_a294867ba9d7ff47e39d421134d8e12ab}{get\+\_\+in\+\_\+addr}} (struct sockaddr $\ast$sa)
+\begin{DoxyCompactList}\small\item\em Retrieves the IP address from a sockaddr structure. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{receiver_8c_ab41fdd85753470e49e9439d9e096947b}{rrecv}} (unsigned short int my\+UDPport, char $\ast$destination\+File, unsigned long long int write\+Rate)
+\begin{DoxyCompactList}\small\item\em Receives TCP packets , implemented using UDP, and handles them accordingly. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{receiver_8c_a3c04138a5bfe5d72780bb7e82a18e627}{main}} (int argc, char $\ast$$\ast$argv)
+\begin{DoxyCompactList}\small\item\em Main function. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+int \mbox{\hyperlink{receiver_8c_a617a47c70795bcff659815ad0efd2266}{counter}} = 0
+\item 
+int \mbox{\hyperlink{receiver_8c_ac7af894858cf396a219d632f40afdc8d}{total}} = 0
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Implementation of a UDP receiver for file transfer. 
+
+This file contains the implementation of a UDP receiver used for file transfer. It includes functions to handle receiving packets, writing data to a file, and sending acknowledgment packets.
+
+\begin{DoxyAuthor}{Author}
+\mbox{[}Lakshya Saroha\mbox{]} (\mbox{[}Lakshya013\mbox{]}) 
+
+\mbox{[}Madhav Kapoor\mbox{]} (\mbox{[}madhavkapoor1\mbox{]}) 
+\end{DoxyAuthor}
+\begin{DoxyRefDesc}{Bug}
+\item[\mbox{\hyperlink{bug__bug000001}{Bug}}]No known bugs just don\textquotesingle{}t handle different writerates. \end{DoxyRefDesc}
+
+
+\doxysubsection{Macro Definition Documentation}
+\mbox{\Hypertarget{receiver_8c_af02e45f15080b8ec9dd7b286157617ff}\label{receiver_8c_af02e45f15080b8ec9dd7b286157617ff}} 
+\index{receiver.c@{receiver.c}!DATA\_LEN@{DATA\_LEN}}
+\index{DATA\_LEN@{DATA\_LEN}!receiver.c@{receiver.c}}
+\doxysubsubsection{\texorpdfstring{DATA\_LEN}{DATA\_LEN}}
+{\footnotesize\ttfamily \#define DATA\+\_\+\+LEN~2000}
+
+\mbox{\Hypertarget{receiver_8c_a0c51b9a83d264825d6d303edd784e889}\label{receiver_8c_a0c51b9a83d264825d6d303edd784e889}} 
+\index{receiver.c@{receiver.c}!MAXBUFLEN@{MAXBUFLEN}}
+\index{MAXBUFLEN@{MAXBUFLEN}!receiver.c@{receiver.c}}
+\doxysubsubsection{\texorpdfstring{MAXBUFLEN}{MAXBUFLEN}}
+{\footnotesize\ttfamily \#define MAXBUFLEN~2000$\ast$30}
+
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{receiver_8c_a294867ba9d7ff47e39d421134d8e12ab}\label{receiver_8c_a294867ba9d7ff47e39d421134d8e12ab}} 
+\index{receiver.c@{receiver.c}!get\_in\_addr@{get\_in\_addr}}
+\index{get\_in\_addr@{get\_in\_addr}!receiver.c@{receiver.c}}
+\doxysubsubsection{\texorpdfstring{get\_in\_addr()}{get\_in\_addr()}}
+{\footnotesize\ttfamily void$\ast$ get\+\_\+in\+\_\+addr (\begin{DoxyParamCaption}\item[{struct sockaddr $\ast$}]{sa }\end{DoxyParamCaption})}
+
+
+
+Retrieves the IP address from a sockaddr structure. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em sa} & Pointer to the sockaddr structure \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Pointer to the IP address 
+\end{DoxyReturn}
+\mbox{\Hypertarget{receiver_8c_a3c04138a5bfe5d72780bb7e82a18e627}\label{receiver_8c_a3c04138a5bfe5d72780bb7e82a18e627}} 
+\index{receiver.c@{receiver.c}!main@{main}}
+\index{main@{main}!receiver.c@{receiver.c}}
+\doxysubsubsection{\texorpdfstring{main()}{main()}}
+{\footnotesize\ttfamily int main (\begin{DoxyParamCaption}\item[{int}]{argc,  }\item[{char $\ast$$\ast$}]{argv }\end{DoxyParamCaption})}
+
+
+
+Main function. 
+
+The main function of the receiver program. It parses command-\/line arguments and invokes the rrecv function to start receiving data.
+
+
+\begin{DoxyParams}{Parameters}
+{\em argc} & Number of command-\/line arguments \\
+\hline
+{\em argv} & Array of command-\/line arguments \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+0 on success, non-\/zero on failure 
+\end{DoxyReturn}
+\mbox{\Hypertarget{receiver_8c_ab41fdd85753470e49e9439d9e096947b}\label{receiver_8c_ab41fdd85753470e49e9439d9e096947b}} 
+\index{receiver.c@{receiver.c}!rrecv@{rrecv}}
+\index{rrecv@{rrecv}!receiver.c@{receiver.c}}
+\doxysubsubsection{\texorpdfstring{rrecv()}{rrecv()}}
+{\footnotesize\ttfamily void rrecv (\begin{DoxyParamCaption}\item[{unsigned short int}]{my\+UDPport,  }\item[{char $\ast$}]{destination\+File,  }\item[{unsigned long long int}]{write\+Rate }\end{DoxyParamCaption})}
+
+
+
+Receives TCP packets , implemented using UDP, and handles them accordingly. 
+
+This function listens for packets on the specified port, receives them, and processes them according to the protocol. It handles both in-\/order and out-\/of-\/order packets, sends acknowledgments, and writes received data to the specified file. Additionally, it performs handshaking with the sender to establish and terminate the connection. It write on the file only if the packet is in order. else send the duplicate acks.
+
+
+\begin{DoxyParams}{Parameters}
+{\em my\+UDPport} & The UDP port to listen on \\
+\hline
+{\em destination\+File} & The file to write the received data to \\
+\hline
+{\em write\+Rate} & The rate at which data should be written (unused) \\
+\hline
+\end{DoxyParams}
+
+
+\doxysubsection{Variable Documentation}
+\mbox{\Hypertarget{receiver_8c_a617a47c70795bcff659815ad0efd2266}\label{receiver_8c_a617a47c70795bcff659815ad0efd2266}} 
+\index{receiver.c@{receiver.c}!counter@{counter}}
+\index{counter@{counter}!receiver.c@{receiver.c}}
+\doxysubsubsection{\texorpdfstring{counter}{counter}}
+{\footnotesize\ttfamily int counter = 0}
+
+\mbox{\Hypertarget{receiver_8c_ac7af894858cf396a219d632f40afdc8d}\label{receiver_8c_ac7af894858cf396a219d632f40afdc8d}} 
+\index{receiver.c@{receiver.c}!total@{total}}
+\index{total@{total}!receiver.c@{receiver.c}}
+\doxysubsubsection{\texorpdfstring{total}{total}}
+{\footnotesize\ttfamily int total = 0}
+
